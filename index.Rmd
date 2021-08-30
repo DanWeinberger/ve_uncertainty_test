@@ -1,0 +1,129 @@
+---
+title: "Generate random draws of VE"
+author: "Dan Weinberger"
+date: "8/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(htmlTable)
+```
+
+## Read in the function
+
+**obs.VEs** should be a vector with 3 values: *mean, LCL, UCL* of reported Vaccine Effectiveness
+
+**Nsim** is number of draws you want from the distribution
+
+**Returns nsim values of the VE** based on the observed distribution
+
+```{r}
+source('./R/sim_ve.R')
+```
+
+Here is a single call to the function, with mean VE=98 and 95%CI (79, 100):
+
+```{r}
+  test1 <- VE_dist_func(obs.VEs = c(98, 79, 100), nsim = 10000)
+
+
+```
+
+### Distribution of the VE
+
+```{r}
+hist(test1)
+```
+
+### Empirical 95% CI of VE from the simulated data
+
+This shows that we are correctly recovering the coverage of the 95% CIs with the simulated data
+
+```{r}
+round(quantile(test1, probs=c(0.5, 0.025, 0.975)),1)
+```
+
+## Read in some summary data and metadata for multiple serotypes
+
+```{r}
+data1 <- list(
+  list(
+    'study' = 'Andrews',
+    'serotype' = '4',
+    'dose' = '1+',
+    'age' = '2.5m_12m',
+    've' = c(96.9, 81.6, 99.5)
+  ),
+  list(
+    'study' = 'Andrews',
+    'serotype' = '6B',
+    'dose' = '1+',
+    'age' = '2.5m_12m',
+    've' = c(54.9, 4.3, 78.7)
+  ),
+  list(
+    'study' = 'Andrews',
+    'serotype' = '6B',
+    'dose' = '2_prim_or_1_boost',
+    'age' = '4_12m',
+    've' = c(60, -2.7, 84.5)
+  )
+)
+```
+
+## Call the function for multiple serotypes
+
+\#obs.VEs should be vector with 3 values: mean, LCL, UCL of reported Vaccine Effectiveness
+
+```{r}
+  test2 <- lapply(data1, function(x){
+    ve.est <- VE_dist_func(x$ve) 
+    out.list <- list('ve.est'=ve.est,'metadata'=x)
+    return(out.list)
+  }
+    )
+  
+  
+```
+
+Extract just the VE estimates
+
+```{r}
+ve.test2 <- lapply(test2, '[[','ve.est')
+```
+
+Calculate empirical 95% CIs from the simulated data
+
+```{r}
+
+ve.test2.q <- round(t(sapply(ve.test2, quantile, probs=c(0.5, 0.025, 0.975))),1)
+
+
+```
+
+Format the simulated values
+
+```{r}
+
+ve.test2.q.fmt <- paste0(ve.test2.q[,'50%'], ', (' ,ve.test2.q[,'2.5%'] ,', ' , ve.test2.q[,'97.5%'],')'  )
+
+print(ve.test2.q.fmt)
+```
+
+Extract the observed VEs
+
+```{r}
+obs.VEs <- t(sapply(test2, function(x) x$metadata$ve))
+
+obs.VEs.fmt <- paste0(obs.VEs[,1], ', (' ,obs.VEs[,2] ,', ' , obs.VEs[,3],')'  )
+
+
+```
+
+## Compare the input and output data
+
+```{r}
+
+htmlTable(cbind.data.frame('Input'=obs.VEs.fmt,'Output'=ve.test2.q.fmt))
+```
